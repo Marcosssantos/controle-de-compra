@@ -48,6 +48,16 @@
     </div><!-- Add Payment Button -->
     <button id="btn-add" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition mb-6"> <i data-lucide="plus-circle" class="w-5 h-5"></i> Registrar Pagamento </button>
     <input id="input-backup" type="file" accept="application/json" class="hidden">
+    <div id="hidden-toolbar" class="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+      <button id="toolbar-toggle" class="w-12 h-12 rounded-full bg-slate-700/90 border border-slate-600 text-white flex items-center justify-center shadow-xl hover:bg-slate-600 transition" title="Abrir menu oculto">•</button>
+      <div id="toolbar-panel" class="hidden flex flex-col gap-2 p-3 bg-slate-800 border border-slate-700 rounded-3xl shadow-2xl w-64">
+        <button id="btn-export-pdfs" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="file-text" class="w-4 h-4"></i> Exportar comprovantes PDF </button>
+        <button id="btn-export-backup" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="download" class="w-4 h-4"></i> Exportar backup JSON </button>
+        <button id="btn-import-backup" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="upload" class="w-4 h-4"></i> Importar backup JSON </button>
+        <button id="btn-upload-github" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="github" class="w-4 h-4"></i> Salvar backup no GitHub </button>
+        <button id="btn-load-github" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="download-cloud" class="w-4 h-4"></i> Carregar backup do GitHub </button>
+      </div>
+    </div>
     <!-- Form Modal -->
     <div id="modal" class="hidden fixed inset-0 z-40 bg-black/60 flex items-end sm:items-center justify-center">
      <div class="bg-slate-800 w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 border border-slate-700 max-h-[90%] overflow-auto">
@@ -641,6 +651,13 @@ if (inputBackup) inputBackup.onchange = async (e) => {
     e.target.value = '';
   }
 };
+const toolbarToggle = document.getElementById('toolbar-toggle');
+if (toolbarToggle) {
+  toolbarToggle.onclick = () => {
+    const panel = document.getElementById('toolbar-panel');
+    if (panel) panel.classList.toggle('hidden');
+  };
+}
 
 document.getElementById('btn-confirm-delete').onclick = async () => {
   const senha = document.getElementById('delete-password').value;
