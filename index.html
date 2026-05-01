@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="pt-BR" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Entrada Imóvel</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'DM Sans', sans-serif; }
+    .progress-ring { transition: stroke-dashoffset 0.6s ease; }
+    .card-enter { animation: slideUp 0.3s ease forwards; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .toast { animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(-10px); } }
+    @keyframes toastOut { to { opacity: 0; transform: translateY(-10px); } }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="h-full w-full bg-slate-900 text-white overflow-auto"><!-- Toast -->
+   <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden">
+    <div class="bg-emerald-500 text-white px-5 py-3 rounded-xl shadow-lg font-medium toast"></div>
+   </div>
+   <div class="max-w-lg mx-auto px-4 py-8"><!-- Header -->
+    <header class="text-center mb-8">
+     <h1 id="main-title" class="text-2xl font-bold text-white">Controle de Quitação do Imovel </h1>
+     <p id="meta-text" class="text-slate-400 mt-1">Meta: R$ 80.000,00</p>
+    </header><!-- Progress Card -->
+    <div class="bg-slate-800 rounded-2xl p-6 mb-6 border border-slate-700">
+     <div class="flex items-center justify-between mb-4">
+      <div>
+       <p class="text-slate-400 text-sm">Total acumulado</p>
+       <p id="total-value" class="text-3xl font-bold text-emerald-400">R$ 0,00</p>
+      </div>
+      <div class="relative w-20 h-20">
+       <svg class="w-20 h-20 -rotate-90"><circle cx="40" cy="40" r="34" stroke="#334155" stroke-width="6" fill="none" /> <circle id="progress-circle" cx="40" cy="40" r="34" stroke="#34d399" stroke-width="6" fill="none" stroke-linecap="round" class="progress-ring" stroke-dasharray="213.6" stroke-dashoffset="213.6" />
+       </svg><span id="progress-percent" class="absolute inset-0 flex items-center justify-center text-sm font-bold text-emerald-400">0%</span>
+      </div>
+     </div>
+     <div class="w-full bg-slate-700 rounded-full h-2">
+      <div id="progress-bar" class="bg-emerald-400 h-2 rounded-full transition-all duration-500" style="width:0%"></div>
+     </div>
+     <p id="remaining-text" class="text-slate-400 text-sm mt-2">Faltam R$ 80.000,00</p>
+    </div><!-- Add Payment Button --> <button id="btn-add" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition mb-6"> <i data-lucide="plus-circle" class="w-5 h-5"></i> Registrar Pagamento </button> <!-- Form Modal -->
+    <div id="modal" class="hidden fixed inset-0 z-40 bg-black/60 flex items-end sm:items-center justify-center">
+     <div class="bg-slate-800 w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 border border-slate-700 max-h-[90%] overflow-auto">
+      <div class="flex items-center justify-between mb-6">
+       <h2 class="text-lg font-bold">Novo Pagamento</h2><button id="btn-close-modal" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+      </div>
+      <form id="payment-form" class="space-y-4">
+       <div><label for="input-valor" class="block text-sm font-medium text-slate-300 mb-1">Valor (R$)</label> <input id="input-valor" type="number" step="0.01" min="0.01" required placeholder="Ex: 5000.00" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+       </div>
+       <div><label for="input-desc" class="block text-sm font-medium text-slate-300 mb-1">Descrição</label> <input id="input-desc" type="text" placeholder="Ex: Transferência bancária" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+       </div>
+       <div><label class="block text-sm font-medium text-slate-300 mb-2">Comprovante</label>
+        <div class="flex gap-3"><label class="flex-1 cursor-pointer bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 flex items-center justify-center gap-2 hover:border-emerald-500 transition"> <i data-lucide="camera" class="w-5 h-5 text-emerald-400"></i> <span class="text-sm">Câmera</span> <input id="input-camera" type="file" accept="image/*" capture="environment" class="hidden"> </label> <label class="flex-1 cursor-pointer bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 flex items-center justify-center gap-2 hover:border-emerald-500 transition"> <i data-lucide="upload" class="w-5 h-5 text-emerald-400"></i> <span class="text-sm">Arquivo</span> <input id="input-file" type="file" accept="image/*,application/pdf" class="hidden"> </label>
+        </div>
+        <p id="file-name" class="text-xs text-emerald-400 mt-2 hidden"></p>
+       </div><button id="btn-submit" type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition mt-2"> <i data-lucide="check" class="w-5 h-5"></i> Salvar Pagamento </button>
+      </form>
+     </div>
+    </div><!-- Records List -->
+    <div id="records-section">
+     <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Pagamentos Registrados</h3>
+     <div id="records-list" class="space-y-3"></div>
+     <p id="empty-state" class="text-center text-slate-500 py-8">Nenhum pagamento registrado ainda.</p>
+    </div><!-- Delete Confirmation -->
+    <div id="delete-confirm" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
+     <div class="bg-slate-800 rounded-2xl p-6 border border-slate-700 max-w-sm mx-4">
+      <p class="text-white font-medium mb-4">Por segurança, digite a senha para excluir:</p>
+      <input id="delete-password" type="password" placeholder="Senha" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-4">
+      <div class="flex gap-3"><button id="btn-cancel-delete" class="flex-1 bg-slate-700 text-white py-3 rounded-xl font-medium hover:bg-slate-600 transition">Cancelar</button> <button id="btn-confirm-delete" class="flex-1 bg-red-500 text-white py-3 rounded-xl font-medium hover:bg-red-600 transition">Excluir</button>
+      </div>
+     </div>
+    </div>
+   </div>
+  </div>
+  <script>
+const META = 80000;
+let records = [];
+let deleteTarget = null;
+let hasFile = false;
+
+// Gerar UUID único
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+const defaultConfig = {
+  titulo: 'Controle de Entrada',
+  meta_label: 'Meta: R$ 80.000,00',
+  background_color: '#0f172a',
+  surface_color: '#1e293b',
+  text_color: '#ffffff',
+  primary_color: '#34d399',
+  secondary_color: '#94a3b8',
+  font_family: 'DM Sans',
+  font_size: 16
+};
+
+// LocalStorage e IndexedDB para persistência
+const STORAGE_KEY = 'payments_data';
+const DELETE_PASSWORD = '1234'; // Senha para deletar
+let db;
+
+// Inicializar IndexedDB para armazenar comprovantes
+function initIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('ControleEntradaDB', 1);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      db = req.result;
+      resolve();
+    };
+    req.onupgradeneeded = (e) => {
+      const database = e.target.result;
+      if (!database.objectStoreNames.contains('comprovantes')) {
+        database.createObjectStore('comprovantes', { keyPath: 'id' });
+      }
+    };
+  });
+}
+
+function loadRecords() {
+  const data = localStorage.getItem(STORAGE_KEY);
+  let records = data ? JSON.parse(data) : [];
+  
+  // Migrar registros antigos que não têm ID
+  records = records.map(r => {
+    if (!r.id) {
+      r.id = generateUUID();
+    }
+    return r;
+  });
+  
+  // Salvar registros migrados
+  if (records.length > 0) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  }
+  
+  return records;
+}
+
+function saveRecords() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+}
+
+function saveComprovante(id, file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const transaction = db.transaction(['comprovantes'], 'readwrite');
+      const store = transaction.objectStore('comprovantes');
+      store.put({
+        id,
+        data: reader.result,
+        nome: file.name,
+        tipo: file.type,
+        data_salva: new Date().toISOString()
+      });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function getComprovante(id) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['comprovantes'], 'readonly');
+    const store = transaction.objectStore('comprovantes');
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function deleteComprovante(id) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['comprovantes'], 'readwrite');
+    const store = transaction.objectStore('comprovantes');
+    store.delete(id);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+function fmt(v) { 
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); 
+}
+
+function updateProgress() {
+  const total = records.reduce((s, r) => s + (r.valor || 0), 0);
+  const pct = Math.min((total / META) * 100, 100);
+  document.getElementById('total-value').textContent = fmt(total);
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-percent').textContent = Math.round(pct) + '%';
+  const circ = document.getElementById('progress-circle');
+  circ.style.strokeDashoffset = 213.6 - (213.6 * pct / 100);
+  document.getElementById('remaining-text').textContent = total >= META ? '🎉 Meta atingida!' : `Faltam ${fmt(META - total)}`;
+}
+
+function renderRecords() {
+  const list = document.getElementById('records-list');
+  const empty = document.getElementById('empty-state');
+  if (records.length === 0) { 
+    list.innerHTML = ''; 
+    empty.classList.remove('hidden'); 
+    return; 
+  }
+  empty.classList.add('hidden');
+  list.innerHTML = '';
+  
+  records.forEach((r, i) => {
+    const el = document.createElement('div');
+    el.dataset.id = r.id;
+    el.className = 'bg-slate-800 border border-slate-700 rounded-xl p-4 flex items-center justify-between card-enter';
+    
+    const dataFormatada = r.data ? new Date(r.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '';
+    
+    el.innerHTML = `
+      <div class="flex-1 min-w-0">
+        <p class="font-semibold text-white truncate">${r.descricao || 'Pagamento'}</p>
+        <p class="text-xs text-slate-400 mt-0.5">${dataFormatada} ${r.tem_comprovante ? '<span class="text-emerald-400">• Comprovante</span>' : ''}</p>
+      </div>
+      <div class="flex items-center gap-2 ml-3">
+        <span class="font-bold text-emerald-400 whitespace-nowrap">${fmt(r.valor || 0)}</span>
+        ${r.tem_comprovante ? `<button class="down-btn text-blue-400 hover:text-blue-300 transition" title="Baixar comprovante"><i data-lucide="download" class="w-4 h-4"></i></button>` : ''}
+        <button class="del-btn text-slate-500 hover:text-red-400 transition" title="Deletar"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+      </div>`;
+    
+    if (r.tem_comprovante) {
+      el.querySelector('.down-btn').onclick = async () => { 
+        await downloadComprovante(r.id, r.descricao); 
+      };
+    }
+    
+    el.querySelector('.del-btn').onclick = () => { 
+      deleteTarget = r.id; 
+      document.getElementById('delete-password').value = '';
+      document.getElementById('delete-confirm').classList.remove('hidden'); 
+    };
+    
+    list.appendChild(el);
+  });
+  
+  lucide.createIcons();
+  updateProgress();
+}
+
+async function downloadComprovante(recordId, descricao) {
+  try {
+    const comprovante = await getComprovante(recordId);
+    if (!comprovante) {
+      showToast('Comprovante não encontrado');
+      return;
+    }
+    
+    // Criar blob do ArrayBuffer
+    const blob = new Blob([comprovante.data], { type: comprovante.tipo });
+    const url = URL.createObjectURL(blob);
+    
+    // Criar link e disparar download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Comprovante-${descricao}-${new Date().getTime()}.${getExtensao(comprovante.tipo)}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('Comprovante baixado!');
+  } catch (e) {
+    console.error('Erro ao baixar comprovante:', e);
+    showToast('Erro ao baixar comprovante');
+  }
+}
+
+function getExtensao(tipo) {
+  if (tipo.includes('pdf')) return 'pdf';
+  if (tipo.includes('jpeg') || tipo.includes('jpg')) return 'jpg';
+  if (tipo.includes('png')) return 'png';
+  if (tipo.includes('webp')) return 'webp';
+  return 'bin';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.querySelector('div').textContent = msg;
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3000);
+}
+
+// UI Events
+document.getElementById('btn-add').onclick = () => document.getElementById('modal').classList.remove('hidden');
+document.getElementById('btn-close-modal').onclick = () => { 
+  document.getElementById('modal').classList.add('hidden'); 
+  resetForm(); 
+};
+document.getElementById('modal').onclick = (e) => { 
+  if (e.target === e.currentTarget) { 
+    document.getElementById('modal').classList.add('hidden'); 
+    resetForm(); 
+  } 
+};
+
+document.getElementById('input-camera').onchange = (e) => { 
+  if (e.target.files[0]) { 
+    hasFile = true; 
+    document.getElementById('file-name').textContent = '📷 ' + e.target.files[0].name; 
+    document.getElementById('file-name').classList.remove('hidden'); 
+  } 
+};
+
+document.getElementById('input-file').onchange = (e) => { 
+  if (e.target.files[0]) { 
+    hasFile = true; 
+    document.getElementById('file-name').textContent = '📎 ' + e.target.files[0].name; 
+    document.getElementById('file-name').classList.remove('hidden'); 
+  } 
+};
+
+document.getElementById('payment-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const valor = parseFloat(document.getElementById('input-valor').value);
+  if (!valor || valor <= 0) { 
+    showToast('Valor inválido'); 
+    return; 
+  }
+  if (records.length >= 999) { 
+    showToast('Limite de registros atingido!'); 
+    return; 
+  }
+  
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true; 
+  btn.innerHTML = '<i data-lucide="spinner" class="w-5 h-5 animate-spin"></i> Salvando...';
+  
+  try {
+    const recordId = generateUUID();
+    const novoRegistro = {
+      id: recordId,
+      valor,
+      descricao: document.getElementById('input-desc').value || 'Pagamento',
+      data: new Date().toISOString(),
+      tem_comprovante: hasFile
+    };
+    
+    // Salvar arquivo se houver
+    if (hasFile) {
+      const fileInput = document.getElementById('input-camera').files.length > 0 
+        ? document.getElementById('input-camera') 
+        : document.getElementById('input-file');
+      
+      const file = fileInput.files[0];
+      await saveComprovante(recordId, file);
+    }
+    
+    records.push(novoRegistro);
+    records.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+    saveRecords();
+    renderRecords();
+    
+    showToast('Pagamento registrado!');
+    document.getElementById('modal').classList.add('hidden');
+    resetForm();
+  } catch (err) {
+    console.error('Erro ao salvar:', err);
+    showToast('Erro ao salvar comprovante');
+  }
+  
+  btn.disabled = false;
+  btn.innerHTML = '<i data-lucide="check" class="w-5 h-5"></i> Salvar Pagamento';
+  lucide.createIcons();
+};
+
+document.getElementById('btn-cancel-delete').onclick = () => { 
+  deleteTarget = null; 
+  document.getElementById('delete-confirm').classList.add('hidden'); 
+};
+
+document.getElementById('btn-confirm-delete').onclick = async () => {
+  const senha = document.getElementById('delete-password').value;
+  if (senha !== DELETE_PASSWORD) {
+    showToast('Senha incorreta!');
+    document.getElementById('delete-password').value = '';
+    return;
+  }
+  
+  if (deleteTarget === null) return;
+  const btn = document.getElementById('btn-confirm-delete');
+  btn.disabled = true; 
+  btn.textContent = 'Excluindo...';
+  
+  try {
+    // Encontrar o registro pelo ID
+    const recordIndex = records.findIndex(r => r.id === deleteTarget);
+    if (recordIndex === -1) return;
+    
+    // Deletar comprovante se houver
+    if (records[recordIndex].tem_comprovante) {
+      await deleteComprovante(deleteTarget);
+    }
+    
+    // Remove do array
+    records.splice(recordIndex, 1);
+    saveRecords();
+    renderRecords();
+    
+    showToast('Pagamento excluído.');
+    document.getElementById('delete-confirm').classList.add('hidden');
+  } catch (err) {
+    console.error('Erro ao excluir:', err);
+    showToast('Erro ao excluir');
+  }
+  
+  btn.disabled = false; 
+  btn.textContent = 'Excluir';
+  deleteTarget = null;
+};
+
+function resetForm() {
+  document.getElementById('payment-form').reset();
+  hasFile = false;
+  document.getElementById('file-name').classList.add('hidden');
+}
+
+// Inicializar ao carregar a página
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await initIndexedDB();
+  } catch (err) {
+    console.error('Erro ao inicializar IndexedDB:', err);
+    showToast('Aviso: Armazenamento local pode estar limitado');
+  }
+  
+  records = loadRecords();
+  renderRecords();
+  lucide.createIcons();
+});
+  </script>
+ </body>
+</html>
