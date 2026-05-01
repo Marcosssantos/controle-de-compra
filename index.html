@@ -6,6 +6,8 @@
   <title>Controle de Entrada Imóvel</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <style>
     * { font-family: 'DM Sans', sans-serif; }
@@ -43,7 +45,19 @@
       <div id="progress-bar" class="bg-emerald-400 h-2 rounded-full transition-all duration-500" style="width:0%"></div>
      </div>
      <p id="remaining-text" class="text-slate-400 text-sm mt-2">Faltam R$ 80.000,00</p>
-    </div><!-- Add Payment Button --> <button id="btn-add" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition mb-6"> <i data-lucide="plus-circle" class="w-5 h-5"></i> Registrar Pagamento </button> <!-- Form Modal -->
+    </div><!-- Add Payment Button -->
+    <div class="grid sm:grid-cols-3 gap-3 mb-6">
+      <button id="btn-add" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="plus-circle" class="w-5 h-5"></i> Registrar Pagamento </button>
+      <button id="btn-export-pdfs" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="file-text" class="w-5 h-5"></i> Exportar comprovantes PDF </button>
+      <button id="btn-export-backup" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="download" class="w-5 h-5"></i> Exportar backup JSON </button>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-3 mb-6">
+      <button id="btn-import-backup" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="upload" class="w-5 h-5"></i> Importar backup JSON </button>
+      <button id="btn-upload-github" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="github" class="w-5 h-5"></i> Salvar backup no GitHub </button>
+      <button id="btn-load-github" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition"> <i data-lucide="download-cloud" class="w-5 h-5"></i> Carregar backup do GitHub </button>
+      <input id="input-backup" type="file" accept="application/json" class="hidden">
+    </div>
+    <!-- Form Modal -->
     <div id="modal" class="hidden fixed inset-0 z-40 bg-black/60 flex items-end sm:items-center justify-center">
      <div class="bg-slate-800 w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 border border-slate-700 max-h-[90%] overflow-auto">
       <div class="flex items-center justify-between mb-6">
@@ -262,20 +276,17 @@ async function downloadComprovante(recordId, descricao) {
       showToast('Comprovante não encontrado');
       return;
     }
-    
-    // Criar blob do ArrayBuffer
+
+    const fileNameBase = `Comprovante-${descricao || 'pagamento'}-${new Date().getTime()}`.replace(/[^a-zA-Z0-9-_\.]/g, '_');
     const blob = new Blob([comprovante.data], { type: comprovante.tipo });
-    const url = URL.createObjectURL(blob);
-    
-    // Criar link e disparar download
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Comprovante-${descricao}-${new Date().getTime()}.${getExtensao(comprovante.tipo)}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
+
+    if (comprovante.tipo.includes('pdf')) {
+      downloadBlob(blob, `${fileNameBase}.pdf`);
+    } else {
+      const pdfBlob = await convertImageBlobToPdf(blob, fileNameBase);
+      downloadBlob(pdfBlob, `${fileNameBase}.pdf`);
+    }
+
     showToast('Comprovante baixado!');
   } catch (e) {
     console.error('Erro ao baixar comprovante:', e);
@@ -289,6 +300,242 @@ function getExtensao(tipo) {
   if (tipo.includes('png')) return 'png';
   if (tipo.includes('webp')) return 'webp';
   return 'bin';
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function convertImageBlobToPdf(blob, title) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxWidth = 1400;
+      const maxHeight = 1900;
+      let width = img.width;
+      let height = img.height;
+      const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new window.jspdf.jsPDF({ orientation: width > height ? 'landscape' : 'portrait', unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const scale = Math.min(pageWidth / width, pageHeight / height);
+      const imgWidth = width * scale;
+      const imgHeight = height * scale;
+      const x = (pageWidth - imgWidth) / 2;
+      const y = (pageHeight - imgHeight) / 2;
+      pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
+      resolve(pdf.output('blob'));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+async function getAllComprovantes() {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['comprovantes'], 'readonly');
+    const store = transaction.objectStore('comprovantes');
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function exportAllReceiptsPdf() {
+  if (records.length === 0) {
+    showToast('Nenhum pagamento para exportar');
+    return;
+  }
+  const zip = new JSZip();
+  for (const record of records) {
+    if (!record.tem_comprovante) continue;
+    const comprovante = await getComprovante(record.id);
+    if (!comprovante) continue;
+    const fileNameBase = `Comprovante-${record.descricao || 'pagamento'}-${record.id}`.replace(/[^a-zA-Z0-9-_\.]/g, '_');
+    if (comprovante.tipo.includes('pdf')) {
+      zip.file(`${fileNameBase}.pdf`, comprovante.data);
+    } else {
+      const blob = new Blob([comprovante.data], { type: comprovante.tipo });
+      const pdfBlob = await convertImageBlobToPdf(blob, fileNameBase);
+      zip.file(`${fileNameBase}.pdf`, await pdfBlob.arrayBuffer());
+    }
+  }
+
+  const content = await zip.generateAsync({ type: 'blob' });
+  downloadBlob(content, `comprovantes-todos-${new Date().toISOString().slice(0, 10)}.zip`);
+  showToast('Exportação concluída!');
+}
+
+async function exportBackup() {
+  const comprovantes = await getAllComprovantes();
+  const backupRecords = [];
+  for (const record of records) {
+    const entry = { ...record };
+    if (record.tem_comprovante) {
+      const comprovante = comprovantes.find(c => c.id === record.id);
+      if (comprovante) {
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(comprovante.data)));
+        entry.comprovante = {
+          name: comprovante.nome,
+          type: comprovante.tipo,
+          base64
+        };
+      }
+    }
+    backupRecords.push(entry);
+  }
+  const blob = new Blob([JSON.stringify({ records: backupRecords }, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, `controle-de-entrada-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  showToast('Backup exportado!');
+}
+
+function normalizeGistId(input) {
+  if (!input) return null;
+  const trimmed = input.trim();
+  const parts = trimmed.match(/([0-9a-f]{32,})$/i);
+  return parts ? parts[1] : null;
+}
+
+async function uploadBackupToGithub() {
+  const token = prompt('Cole seu token GitHub com escopo de Gist (não será salvo):');
+  if (!token) {
+    showToast('Upload cancelado');
+    return;
+  }
+
+  const comprovantes = await getAllComprovantes();
+  const backupRecords = records.map((record) => {
+    const entry = { ...record };
+    if (record.tem_comprovante) {
+      const comprovante = comprovantes.find(c => c.id === record.id);
+      if (comprovante) {
+        entry.comprovante = {
+          name: comprovante.nome,
+          type: comprovante.tipo,
+          base64: btoa(String.fromCharCode(...new Uint8Array(comprovante.data)))
+        };
+      }
+    }
+    return entry;
+  });
+
+  const content = JSON.stringify({ records: backupRecords }, null, 2);
+  const body = {
+    description: 'Backup Controle de Entrada',
+    public: false,
+    files: {
+      'controle-de-entrada-backup.json': { content }
+    }
+  };
+
+  try {
+    const response = await fetch('https://api.github.com/gists', {
+      method: 'POST',
+      headers: {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github+json'
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`GitHub API falhou: ${response.status} ${text}`);
+    }
+
+    const result = await response.json();
+    window.open(result.html_url, '_blank');
+    showToast('Backup enviado ao GitHub! Abra o Gist para copiar o link.');
+  } catch (err) {
+    console.error('Erro ao publicar backup no GitHub:', err);
+    showToast('Falha ao salvar no GitHub');
+  }
+}
+
+async function importBackupFromGithub() {
+  const input = prompt('Cole o ID ou URL do Gist que contém o backup:');
+  const gistId = normalizeGistId(input);
+  if (!gistId) {
+    showToast('ID de Gist inválido');
+    return;
+  }
+
+  try {
+    const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: { 'Accept': 'application/vnd.github+json' }
+    });
+    if (!response.ok) {
+      throw new Error(`Gist não encontrado: ${response.status}`);
+    }
+    const gist = await response.json();
+    const file = gist.files['controle-de-entrada-backup.json'] || Object.values(gist.files)[0];
+    if (!file || !file.content) {
+      showToast('Backup não encontrado no Gist');
+      return;
+    }
+
+    const blob = new Blob([file.content], { type: 'application/json' });
+    await importBackupFile(new File([blob], 'controle-de-entrada-backup.json', { type: 'application/json' }));
+  } catch (err) {
+    console.error('Erro ao carregar backup do GitHub:', err);
+    showToast('Falha ao carregar do GitHub');
+  }
+}
+
+async function importBackupFile(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data.records || !Array.isArray(data.records)) {
+      showToast('Backup inválido');
+      return;
+    }
+    const existingIds = new Set(records.map(r => r.id));
+    for (const entry of data.records) {
+      if (!entry.id || existingIds.has(entry.id)) continue;
+      records.push({
+        id: entry.id,
+        valor: entry.valor || 0,
+        descricao: entry.descricao || 'Pagamento',
+        data: entry.data || new Date().toISOString(),
+        tem_comprovante: !!entry.tem_comprovante
+      });
+      if (entry.tem_comprovante && entry.comprovante && entry.comprovante.base64) {
+        const arrayBuffer = base64ToArrayBuffer(entry.comprovante.base64);
+        const fileBlob = new File([arrayBuffer], entry.comprovante.name || `comprovante-${entry.id}`, { type: entry.comprovante.type || 'application/octet-stream' });
+        await saveComprovante(entry.id, fileBlob);
+      }
+    }
+    saveRecords();
+    renderRecords();
+    showToast('Backup importado!');
+  } catch (err) {
+    console.error('Erro ao importar backup:', err);
+    showToast('Falha ao importar backup');
+  }
 }
 
 function showToast(msg) {
@@ -384,6 +631,18 @@ document.getElementById('payment-form').onsubmit = async (e) => {
 document.getElementById('btn-cancel-delete').onclick = () => { 
   deleteTarget = null; 
   document.getElementById('delete-confirm').classList.add('hidden'); 
+};
+
+document.getElementById('btn-export-pdfs').onclick = exportAllReceiptsPdf;
+document.getElementById('btn-export-backup').onclick = exportBackup;
+document.getElementById('btn-upload-github').onclick = uploadBackupToGithub;
+document.getElementById('btn-load-github').onclick = importBackupFromGithub;
+document.getElementById('btn-import-backup').onclick = () => document.getElementById('input-backup').click();
+document.getElementById('input-backup').onchange = async (e) => {
+  if (e.target.files[0]) {
+    await importBackupFile(e.target.files[0]);
+    e.target.value = '';
+  }
 };
 
 document.getElementById('btn-confirm-delete').onclick = async () => {
